@@ -41,68 +41,6 @@ STEP_LABELS = {STEP_MAJOR: "대분류", STEP_SUB: "중분류", STEP_KTAS: "KTAS 
 
 
 # ─────────────────────────────────────────────
-# 글로벌 CSS 스타일
-# ─────────────────────────────────────────────
-def inject_global_css():
-    st.markdown("""
-    <style>
-    /* ── 전체 배경 ── */
-    .stApp {
-        background-color: #F7F8FA;
-    }
-
-    /* ── 메인 컨테이너 패딩 ── */
-    .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 1rem;
-    }
-
-    /* ── 프로그레스 바 색상 ── */
-    .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #4A90D9, #357ABD);
-    }
-
-    /* ── 라디오 버튼 스타일 ── */
-    div[role="radiogroup"] > label {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 8px;
-        padding: 8px 14px;
-        margin-bottom: 4px;
-        transition: all 0.15s ease;
-    }
-    div[role="radiogroup"] > label:hover {
-        background-color: #EBF5FF;
-        border-color: #4A90D9;
-    }
-    div[role="radiogroup"] > label[data-checked="true"],
-    div[role="radiogroup"] > label:has(input:checked) {
-        background-color: #EBF5FF;
-        border-color: #4A90D9;
-        box-shadow: 0 0 0 1px #4A90D9;
-    }
-
-    /* ── 버튼 스타일 ── */
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #4A90D9, #357ABD);
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        letter-spacing: 0.3px;
-    }
-    .stButton > button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #357ABD, #2A6099);
-    }
-
-    /* ── 숨김: Streamlit 기본 요소 ── */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    </style>
-    """, unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────────
 # 데이터 로딩
 # ─────────────────────────────────────────────
 @st.cache_data
@@ -193,11 +131,11 @@ def init_session_state():
 
 
 # ─────────────────────────────────────────────
-# 문진 대화 렌더링 (components.html 사용)
+# 문진 대화 렌더링 (components.html — iframe)
 # ─────────────────────────────────────────────
 def render_conversation(conversation):
     """문진 대화를 채팅 형태로 렌더링합니다.
-    st.components.v1.html()을 사용하여 HTML이 항상 올바르게 렌더링됩니다.
+    components.html()을 사용하므로 HTML이 항상 올바르게 표시됩니다.
     """
     chat_bubbles = ""
     msg_count = 0
@@ -212,32 +150,36 @@ def render_conversation(conversation):
                 utterance.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
+                .replace('"', "&quot;")
             )
 
             if speaker == "I":
-                chat_bubbles += f"""
-                <div class="msg-row interviewer">
-                    <div class="bubble interviewer-bubble">
-                        <div class="label interviewer-label">🩺 면담자 <span class="turn">Turn {turn}</span></div>
-                        <div class="text">{utterance}</div>
-                    </div>
-                </div>"""
+                chat_bubbles += (
+                    '<div class="msg-row left">'
+                    '<div class="bubble bbl-i">'
+                    f'<div class="lbl lbl-i">&#x1F9D1;&#x200D;&#x2695;&#xFE0F; 면담자'
+                    f' <span class="turn-tag">Turn {turn}</span></div>'
+                    f'<div class="txt">{utterance}</div>'
+                    '</div></div>'
+                )
             elif speaker == "CHATGPT":
-                chat_bubbles += f"""
-                <div class="msg-row patient">
-                    <div class="bubble patient-bubble">
-                        <div class="label patient-label">🤖 환자(ChatGPT) <span class="turn">Turn {turn}</span></div>
-                        <div class="text">{utterance}</div>
-                    </div>
-                </div>"""
+                chat_bubbles += (
+                    '<div class="msg-row right">'
+                    '<div class="bubble bbl-p">'
+                    f'<div class="lbl lbl-p">&#x1F916; 환자(ChatGPT)'
+                    f' <span class="turn-tag">Turn {turn}</span></div>'
+                    f'<div class="txt">{utterance}</div>'
+                    '</div></div>'
+                )
             else:
-                chat_bubbles += f"""
-                <div class="msg-row interviewer">
-                    <div class="bubble other-bubble">
-                        <div class="label other-label">{speaker} <span class="turn">Turn {turn}</span></div>
-                        <div class="text">{utterance}</div>
-                    </div>
-                </div>"""
+                chat_bubbles += (
+                    '<div class="msg-row left">'
+                    '<div class="bubble bbl-o">'
+                    f'<div class="lbl lbl-o">{speaker}'
+                    f' <span class="turn-tag">Turn {turn}</span></div>'
+                    f'<div class="txt">{utterance}</div>'
+                    '</div></div>'
+                )
             msg_count += 1
 
     elif isinstance(conversation, str):
@@ -246,121 +188,109 @@ def render_conversation(conversation):
             line = line.strip()
             if not line:
                 continue
-            line_esc = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            esc = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
             if any(line.startswith(p) for p in ["의사:", "Doctor:", "I:"]):
                 content = line.split(":", 1)[1].strip()
                 content = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                chat_bubbles += f"""
-                <div class="msg-row interviewer">
-                    <div class="bubble interviewer-bubble">
-                        <div class="label interviewer-label">🩺 면담자</div>
-                        <div class="text">{content}</div>
-                    </div>
-                </div>"""
+                chat_bubbles += (
+                    '<div class="msg-row left"><div class="bubble bbl-i">'
+                    '<div class="lbl lbl-i">&#x1F9D1;&#x200D;&#x2695;&#xFE0F; 면담자</div>'
+                    f'<div class="txt">{content}</div>'
+                    '</div></div>'
+                )
             elif any(line.startswith(p) for p in ["환자:", "Patient:", "CHATGPT:"]):
                 content = line.split(":", 1)[1].strip()
                 content = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                chat_bubbles += f"""
-                <div class="msg-row patient">
-                    <div class="bubble patient-bubble">
-                        <div class="label patient-label">🤖 환자(ChatGPT)</div>
-                        <div class="text">{content}</div>
-                    </div>
-                </div>"""
+                chat_bubbles += (
+                    '<div class="msg-row right"><div class="bubble bbl-p">'
+                    '<div class="lbl lbl-p">&#x1F916; 환자(ChatGPT)</div>'
+                    f'<div class="txt">{content}</div>'
+                    '</div></div>'
+                )
             else:
-                chat_bubbles += f"""
-                <div class="msg-row interviewer">
-                    <div class="bubble other-bubble">
-                        <div class="text">{line_esc}</div>
-                    </div>
-                </div>"""
+                chat_bubbles += (
+                    '<div class="msg-row left"><div class="bubble bbl-o">'
+                    f'<div class="txt">{esc}</div>'
+                    '</div></div>'
+                )
             msg_count += 1
 
-    # 높이 계산: 메시지 수에 따라 동적으로
-    estimated_height = max(450, min(msg_count * 75, 700))
+    estimated_height = max(450, min(msg_count * 72, 700))
 
-    full_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="utf-8">
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-                         'Noto Sans KR', sans-serif;
-            background: #F7F8FA;
-            padding: 12px;
-        }}
-        .chat-container {{
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }}
-        .msg-row {{
-            display: flex;
-        }}
-        .msg-row.interviewer {{
-            justify-content: flex-start;
-        }}
-        .msg-row.patient {{
-            justify-content: flex-end;
-        }}
-        .bubble {{
-            max-width: 82%;
-            padding: 10px 14px;
-            border-radius: 14px;
-            line-height: 1.55;
-        }}
-        .interviewer-bubble {{
-            background: #FFFFFF;
-            border: 1px solid #D6E4F0;
-            border-bottom-left-radius: 4px;
-        }}
-        .patient-bubble {{
-            background: #EEF6FF;
-            border: 1px solid #C5DCF0;
-            border-bottom-right-radius: 4px;
-        }}
-        .other-bubble {{
-            background: #F5F5F5;
-            border: 1px solid #E0E0E0;
-            border-bottom-left-radius: 4px;
-        }}
-        .label {{
-            font-size: 11.5px;
-            font-weight: 700;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }}
-        .interviewer-label {{ color: #2C6FBF; }}
-        .patient-label {{ color: #C25700; }}
-        .other-label {{ color: #666; }}
-        .turn {{
-            font-weight: 400;
-            font-size: 10.5px;
-            color: #999;
-        }}
-        .text {{
-            font-size: 13.5px;
-            color: #2D3748;
-            word-break: keep-all;
-            overflow-wrap: break-word;
-        }}
-    </style>
-    </head>
-    <body>
-        <div class="chat-container">
-            {chat_bubbles}
-        </div>
-    </body>
-    </html>
-    """
+    full_html = (
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
+        '*{margin:0;padding:0;box-sizing:border-box;}'
+        'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,'
+        '"Noto Sans KR",sans-serif;background:#F8F9FB;padding:10px 12px;}'
+        '.msg-row{display:flex;margin-bottom:8px;}'
+        '.msg-row.left{justify-content:flex-start;}'
+        '.msg-row.right{justify-content:flex-end;}'
+        '.bubble{max-width:82%;padding:10px 14px;border-radius:14px;line-height:1.55;}'
+        '.bbl-i{background:#fff;border:1px solid #D6E4F0;border-bottom-left-radius:4px;}'
+        '.bbl-p{background:#EEF6FF;border:1px solid #C5DCF0;border-bottom-right-radius:4px;}'
+        '.bbl-o{background:#F5F5F5;border:1px solid #E0E0E0;border-bottom-left-radius:4px;}'
+        '.lbl{font-size:11.5px;font-weight:700;margin-bottom:3px;}'
+        '.lbl-i{color:#2C6FBF;}'
+        '.lbl-p{color:#C25700;}'
+        '.lbl-o{color:#666;}'
+        '.turn-tag{font-weight:400;font-size:10.5px;color:#999;margin-left:4px;}'
+        '.txt{font-size:13.5px;color:#2D3748;word-break:keep-all;overflow-wrap:break-word;}'
+        '</style></head><body>'
+        f'{chat_bubbles}'
+        '</body></html>'
+    )
 
     components.html(full_html, height=estimated_height, scrolling=True)
+
+
+# ─────────────────────────────────────────────
+# 단계 진행 표시 (components.html — iframe)
+# ─────────────────────────────────────────────
+def render_step_indicator(current_step):
+    """단계 진행 표시를 components.html로 렌더링합니다."""
+    steps_info = [("1", "대분류"), ("2", "중분류"), ("3", "KTAS Level")]
+    parts = ""
+    for i, (num, label) in enumerate(steps_info):
+        if i < current_step:
+            c_css = "background:#48BB78;color:#fff;border:2px solid #48BB78;"
+            l_css = "color:#48BB78;font-weight:600;"
+            icon = "&#10003;"
+        elif i == current_step:
+            c_css = "background:#4A90D9;color:#fff;border:2px solid #4A90D9;"
+            l_css = "color:#4A90D9;font-weight:700;"
+            icon = num
+        else:
+            c_css = "background:#fff;color:#CBD5E0;border:2px solid #CBD5E0;"
+            l_css = "color:#A0AEC0;font-weight:400;"
+            icon = num
+
+        connector = ""
+        if i < len(steps_info) - 1:
+            cc = "#48BB78" if i < current_step else "#E2E8F0"
+            connector = f'<div style="flex:1;height:2px;background:{cc};margin:0 8px;align-self:center;"></div>'
+
+        parts += (
+            '<div style="display:flex;flex-direction:column;align-items:center;min-width:80px;">'
+            f'<div style="width:32px;height:32px;border-radius:50%;display:flex;'
+            f'align-items:center;justify-content:center;font-size:14px;font-weight:700;{c_css}">{icon}</div>'
+            f'<div style="margin-top:4px;font-size:12.5px;{l_css}">{label}</div>'
+            f'</div>{connector}'
+        )
+
+    html = (
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
+        '*{margin:0;padding:0;box-sizing:border-box;}'
+        'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,'
+        '"Noto Sans KR",sans-serif;background:transparent;'
+        'display:flex;justify-content:center;padding:6px 0;}'
+        '</style></head><body>'
+        '<div style="display:flex;align-items:flex-start;justify-content:center;padding:4px 40px;">'
+        f'{parts}'
+        '</div></body></html>'
+    )
+
+    components.html(html, height=70, scrolling=False)
 
 
 # ─────────────────────────────────────────────
@@ -399,25 +329,27 @@ def login_page():
 
     _, col_center, _ = st.columns([1, 2.2, 1])
     with col_center:
-        # 타이틀
-        st.markdown("""
-        <div style="text-align:center; padding: 30px 0 10px 0;">
-            <div style="font-size: 38px; font-weight: 800; color: #1E3A5F;
-                        letter-spacing: -0.5px; line-height: 1.3;">
-                🏥 문진 대화 평가 시스템
-            </div>
-            <div style="font-size: 15px; color: #8899AA; margin-top: 6px; font-weight: 400;">
-                Medical Triage Conversation Evaluation
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        # 타이틀 (components.html)
+        components.html(
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
+            '*{margin:0;padding:0;box-sizing:border-box;}'
+            'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,'
+            '"Noto Sans KR",sans-serif;background:transparent;text-align:center;padding:10px 0;}'
+            '.t{font-size:36px;font-weight:800;color:#1E3A5F;letter-spacing:-0.5px;}'
+            '.s{font-size:15px;color:#8899AA;margin-top:6px;}'
+            '</style></head><body>'
+            '<div class="t">&#x1F3E5; 문진 대화 평가 시스템</div>'
+            '<div class="s">Medical Triage Conversation Evaluation</div>'
+            '</body></html>',
+            height=90,
+            scrolling=False,
+        )
 
-        st.markdown("")
         st.markdown("")
 
         # 로그인 카드
         with st.container(border=True):
-            st.markdown("#### 👤 평가자 로그인")
+            st.markdown("#### 평가자 로그인")
             st.markdown("")
 
             evaluator_id = st.text_input(
@@ -442,7 +374,7 @@ def login_page():
 
         # 시작 방식 카드
         with st.container(border=True):
-            st.markdown("#### 📋 평가 시작 방식")
+            st.markdown("#### 평가 시작 방식")
             st.markdown("")
 
             start_mode = st.radio(
@@ -468,7 +400,7 @@ def login_page():
         st.markdown("")
         st.markdown("")
 
-        if st.button("🚀  평가 시작", type="primary", use_container_width=True):
+        if st.button("평가 시작", type="primary", use_container_width=True):
             if evaluator_id.strip():
                 st.session_state.evaluator_id = evaluator_id.strip()
                 st.session_state.version = version
@@ -483,70 +415,6 @@ def login_page():
                 st.rerun()
             else:
                 st.error("식별 번호를 입력해주세요.")
-
-
-# ─────────────────────────────────────────────
-# 단계 진행 표시 바
-# ─────────────────────────────────────────────
-def render_step_indicator(current_step):
-    steps = [
-        ("1", "대분류"),
-        ("2", "중분류"),
-        ("3", "KTAS Level"),
-    ]
-    items_html = ""
-    for i, (num, label) in enumerate(steps):
-        if i < current_step:
-            # 완료
-            circle_style = "background:#48BB78; color:#fff; border:2px solid #48BB78;"
-            label_style = "color:#48BB78; font-weight:600;"
-            icon = "✓"
-        elif i == current_step:
-            # 현재
-            circle_style = "background:#4A90D9; color:#fff; border:2px solid #4A90D9;"
-            label_style = "color:#4A90D9; font-weight:700;"
-            icon = num
-        else:
-            # 미완료
-            circle_style = "background:#fff; color:#CBD5E0; border:2px solid #CBD5E0;"
-            label_style = "color:#A0AEC0; font-weight:400;"
-            icon = num
-
-        connector = ""
-        if i < len(steps) - 1:
-            conn_color = "#48BB78" if i < current_step else "#E2E8F0"
-            connector = f'<div style="flex:1; height:2px; background:{conn_color}; margin:0 8px; align-self:center;"></div>'
-
-        items_html += f"""
-        <div style="display:flex; flex-direction:column; align-items:center; min-width:80px;">
-            <div style="width:32px; height:32px; border-radius:50%; display:flex;
-                        align-items:center; justify-content:center; font-size:14px;
-                        font-weight:700; {circle_style}">{icon}</div>
-            <div style="margin-top:4px; font-size:12.5px; {label_style}">{label}</div>
-        </div>
-        {connector}
-        """
-
-    st.markdown(f"""
-    <div style="display:flex; align-items:flex-start; justify-content:center;
-                padding: 8px 40px; margin-bottom: 4px;">
-        {items_html}
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────────
-# 선택된 항목 뱃지
-# ─────────────────────────────────────────────
-def render_selection_badge(label, value, color="#4A90D9"):
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, {color}11, {color}22);
-                border: 1px solid {color}44; border-radius: 8px;
-                padding: 8px 14px; margin-bottom: 12px;">
-        <span style="font-size:12px; color:{color}; font-weight:500;">{label}</span>
-        <span style="font-size:14px; color:#1A202C; font-weight:700; margin-left:6px;">{value}</span>
-    </div>
-    """, unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────
@@ -575,58 +443,34 @@ def evaluation_page():
     if st.session_state.step_start_time is None:
         st.session_state.step_start_time = time.time()
 
-    # 완료 수 (임시 _temp 제외)
+    # 완료 수 (_temp 제외)
     completed = len({k: v for k, v in st.session_state.results.items() if not k.endswith("_temp")})
 
-    # ── 상단 헤더 ──
+    # ── 상단: 진행률 + 평가자 정보 ──
     h1, h2 = st.columns([5, 1])
     with h1:
         progress_ratio = completed / total
-        st.progress(progress_ratio, text=f"📊 진행률: {completed} / {total} 완료")
+        st.progress(progress_ratio, text=f"진행률: {completed} / {total} 완료")
     with h2:
         ver_label = "기본" if st.session_state.version == "ver1" else "LLM참고"
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #E6F4EA, #D4EDDA);
-                    border-radius: 10px; padding: 8px 14px; text-align: center;
-                    border: 1px solid #B7E1C4;">
-            <div style="font-size:11px; color:#2E7D32; font-weight:500;">평가자</div>
-            <div style="font-size:14px; font-weight:700; color:#1B5E20;">
-                {st.session_state.evaluator_id}
-            </div>
-            <div style="font-size:10.5px; color:#558B2F;">{ver_label}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.success(f"**{st.session_state.evaluator_id}** ({ver_label})")
 
-    st.markdown("")
-
-    # 단계 표시
+    # ── 단계 표시 (components.html) ──
     render_step_indicator(step)
 
-    st.markdown("---")
+    st.divider()
 
     # ── 본문: 대화(왼쪽) + 평가(오른쪽) ──
     col_left, col_right = st.columns([1, 1], gap="large")
 
     with col_left:
         age_label = item.get("age", "")
-        age_badge = f' · <span style="color:#E65100; font-weight:600;">{age_label}</span>' if age_label else ""
-        st.markdown(f"""
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-            <span style="font-size:20px; font-weight:700; color:#1E3A5F;">
-                💬 문진 대화 #{item['id']}
-            </span>
-            <span style="font-size:13px; color:#718096;">{age_badge}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
+        age_suffix = f" ({age_label})" if age_label else ""
+        st.subheader(f"문진 대화 #{item['id']}{age_suffix}")
         render_conversation(item["conversation"])
 
     with col_right:
-        st.markdown(f"""
-        <div style="font-size:20px; font-weight:700; color:#1E3A5F; margin-bottom:12px;">
-            📝 평가: {STEP_LABELS[step]}
-        </div>
-        """, unsafe_allow_html=True)
+        st.subheader(f"평가: {STEP_LABELS[step]}")
 
         selected_value = None
 
@@ -635,7 +479,7 @@ def evaluation_page():
             major_options = get_major_categories(item)
 
             if is_ver2 and item.get("llm_major"):
-                st.info(f"🤖 **LLM 예측:** {item['llm_major']}")
+                st.info(f"**LLM 예측:** {item['llm_major']}")
 
             st.markdown("**아래에서 대분류를 선택하세요:**")
             selected_value = st.radio(
@@ -651,12 +495,12 @@ def evaluation_page():
             selected_major = st.session_state.temp_major
             if selected_major:
                 sub_options = get_sub_categories_for_major(selected_major, item)
-                render_selection_badge("선택된 대분류", selected_major)
+                st.info(f"**선택된 대분류:** {selected_major}")
             else:
                 sub_options = item.get("sub_categories", [])
 
             if is_ver2 and item.get("llm_sub"):
-                st.info(f"🤖 **LLM 예측:** {item['llm_sub']}")
+                st.info(f"**LLM 예측:** {item['llm_sub']}")
 
             st.markdown("**아래에서 중분류를 선택하세요:**")
             selected_value = st.radio(
@@ -673,11 +517,11 @@ def evaluation_page():
             temp_result = st.session_state.results.get(f"{item_id}_temp", {})
             selected_sub = temp_result.get("sub", "")
 
-            render_selection_badge("선택된 대분류", selected_major)
-            render_selection_badge("선택된 중분류", selected_sub, color="#E65100")
+            st.info(f"**선택된 대분류:** {selected_major}")
+            st.info(f"**선택된 중분류:** {selected_sub}")
 
             if is_ver2 and item.get("llm_ktas"):
-                st.info(f"🤖 **LLM 예측:** {item['llm_ktas']}")
+                st.info(f"**LLM 예측:** {item['llm_ktas']}")
 
             st.markdown("**아래에서 KTAS Level을 선택하세요:**")
             selected_value = st.radio(
@@ -689,24 +533,20 @@ def evaluation_page():
             )
 
     # ── 하단 네비게이션 ──
-    st.markdown("---")
+    st.divider()
     nav1, nav2, nav3 = st.columns([2, 3, 2])
 
     with nav1:
-        st.markdown(
-            f"<div style='padding-top:8px; color:#718096; font-size:13.5px;'>"
-            f"문제 <b>{idx + 1}</b> / {total} &nbsp;·&nbsp; {STEP_LABELS[step]}</div>",
-            unsafe_allow_html=True,
-        )
+        st.caption(f"문제 {idx + 1} / {total}  ·  {STEP_LABELS[step]}")
 
     with nav2:
-        if st.button("💾  평가 완료 및 결과 저장", use_container_width=True):
+        if st.button("평가 완료 및 결과 저장", use_container_width=True):
             st.session_state.page = "result"
             st.rerun()
 
     with nav3:
         if selected_value is not None:
-            if st.button("다음 ▶", type="primary", use_container_width=True):
+            if st.button("다음 →", type="primary", use_container_width=True):
                 elapsed = time.time() - (st.session_state.step_start_time or time.time())
 
                 if step == STEP_MAJOR:
@@ -748,20 +588,14 @@ def evaluation_page():
                 disabled=True,
             )
 
-    st.caption("ℹ️ 다음 화면으로 넘어간 후에는 이전 평가를 번복할 수 없습니다.")
+    st.caption("※ 다음 화면으로 넘어간 후에는 이전 평가를 번복할 수 없습니다.")
 
 
 # ─────────────────────────────────────────────
 # 페이지 3: 결과
 # ─────────────────────────────────────────────
 def result_page():
-    st.markdown("""
-    <div style="text-align:center; padding: 20px 0 10px 0;">
-        <span style="font-size: 32px; font-weight: 800; color: #1E3A5F;">
-            📊 평가 결과
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.title("📊 평가 결과")
 
     data = st.session_state.data or []
     total = len(data)
@@ -782,9 +616,9 @@ def result_page():
     if completed < total:
         st.info(f"총 {total}개 중 **{completed}개** 평가 완료 — 현재까지의 결과를 저장할 수 있습니다.")
     else:
-        st.success(f"🎉 총 **{completed}개**의 평가가 모두 완료되었습니다!")
+        st.success(f"총 **{completed}개**의 평가가 모두 완료되었습니다!")
 
-    st.markdown("---")
+    st.divider()
 
     # 결과 DataFrame
     rows = []
@@ -807,24 +641,24 @@ def result_page():
     df = pd.DataFrame(rows)
 
     # 요약 통계
-    st.markdown("### 평가 요약")
+    st.subheader("평가 요약")
     m1, m2, m3 = st.columns(3)
     with m1:
-        st.metric("✅ 평가 완료", f"{completed} / {total}")
+        st.metric("평가 완료", f"{completed} / {total}")
     with m2:
         if not df.empty and len(df) > 0:
-            st.metric("📁 최다 대분류", df["대분류"].mode().iloc[0])
+            st.metric("최다 대분류", df["대분류"].mode().iloc[0])
     with m3:
         if not df.empty and len(df) > 0:
-            st.metric("🏷️ 최다 KTAS", df["KTAS level"].mode().iloc[0])
+            st.metric("최다 KTAS", df["KTAS level"].mode().iloc[0])
 
     st.markdown("")
 
     # 결과 테이블
-    st.markdown("### 결과 미리보기")
+    st.subheader("결과 미리보기")
     st.dataframe(df, use_container_width=True, height=400)
 
-    st.markdown("---")
+    st.divider()
 
     # 다운로드
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -834,7 +668,7 @@ def result_page():
     d1, d2 = st.columns(2)
     with d1:
         st.download_button(
-            label="📥  CSV 파일 다운로드",
+            label="CSV 파일 다운로드",
             data=csv_data,
             file_name=filename,
             mime="text/csv",
@@ -842,15 +676,15 @@ def result_page():
             use_container_width=True,
         )
     with d2:
-        if st.button("💾  서버에 결과 저장", use_container_width=True):
+        if st.button("서버에 결과 저장", use_container_width=True):
             os.makedirs(RESULTS_DIR, exist_ok=True)
             save_path = os.path.join(RESULTS_DIR, filename)
             df.to_csv(save_path, index=False, encoding="utf-8-sig")
             st.success(f"저장 완료: {save_path}")
 
-    st.markdown("---")
+    st.divider()
     if completed < total:
-        if st.button("▶  이어서 평가하기", use_container_width=True):
+        if st.button("이어서 평가하기", use_container_width=True):
             st.session_state.page = "evaluation"
             st.rerun()
 
@@ -866,11 +700,9 @@ def main():
         initial_sidebar_state="collapsed",
     )
 
-    inject_global_css()
-
     with st.sidebar:
-        st.header("⚙️ 설정")
-        if st.button("🔄 처음부터 다시 시작", type="secondary"):
+        st.header("설정")
+        if st.button("처음부터 다시 시작", type="secondary"):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
