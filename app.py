@@ -24,7 +24,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DATA_FILE = os.path.join(DATA_DIR, "evaluation_data.xlsx")
 CATEGORIES_FILE = os.path.join(DATA_DIR, "categories.xlsx")
-RESULTS_DIR = os.path.join(BASE_DIR, "results")
 
 KTAS_OPTIONS = [
     "Level 1 - 즉각 소생 (Resuscitation)",
@@ -44,13 +43,15 @@ STEP_LABELS = {STEP_MAJOR: "대분류", STEP_SUB: "중분류", STEP_KTAS: "KTAS 
 # 데이터 로딩
 # ─────────────────────────────────────────────
 @st.cache_data
-def load_data():
+def load_data(version="ver1"):
     """evaluation_data.xlsx 엑셀 파일에서 평가 데이터를 로드합니다."""
     if not os.path.exists(DATA_FILE):
         st.error(f"데이터 파일을 찾을 수 없습니다: {DATA_FILE}")
         st.stop()
 
     df = pd.read_excel(DATA_FILE, engine="openpyxl")
+
+    q_col = "문제번호1" if version == "ver1" else "문제번호2"
 
     data = []
     for _, row in df.iterrows():
@@ -72,6 +73,7 @@ def load_data():
 
         item = {
             "id": int(row["index"]),
+            "문제번호": int(row[q_col]),
             "conversation": conversation,
             "age": age_value,
             "llm_major": str(row.get("LLM_대분류", "")) if pd.notna(row.get("LLM_대분류")) else "",
@@ -80,6 +82,7 @@ def load_data():
         }
         data.append(item)
 
+    data.sort(key=lambda x: x["문제번호"])
     return data
 
 
@@ -122,7 +125,6 @@ def init_session_state():
         "data": None,
         "categories": None,
         "step_start_time": None,
-        "start_index": 0,
         "temp_major": None,
     }
     for key, val in defaults.items():
@@ -386,7 +388,7 @@ def login_page():
 
             start_number = 1
             if start_mode == "이어서 평가 (문제 번호 선택)":
-                preview_data = load_data()
+                preview_data = load_data(version)
                 total_count = len(preview_data)
                 start_number = st.number_input(
                     "시작할 문제 번호를 입력하세요",
@@ -404,10 +406,9 @@ def login_page():
             if evaluator_id.strip():
                 st.session_state.evaluator_id = evaluator_id.strip()
                 st.session_state.version = version
-                st.session_state.data = load_data()
+                st.session_state.data = load_data(version)
                 st.session_state.categories = load_categories()
                 st.session_state.current_index = start_number - 1
-                st.session_state.start_index = start_number - 1
                 st.session_state.current_step = STEP_MAJOR
                 st.session_state.step_start_time = time.time()
                 st.session_state.temp_major = None
@@ -466,7 +467,8 @@ def evaluation_page():
     with col_left:
         age_label = item.get("age", "")
         age_suffix = f" ({age_label})" if age_label else ""
-        st.subheader(f"문진 대화 #{item['id']}{age_suffix}")
+        q_num = item.get("문제번호", idx + 1)
+        st.subheader(f"{q_num}. 문진 대화 #{item['id']}{age_suffix}")
         render_conversation(item["conversation"])
 
     with col_right:
@@ -532,12 +534,21 @@ def evaluation_page():
                 label_visibility="collapsed",
             )
 
+        st.markdown("")
+        st.markdown(
+            '<div style="background-color: #FDF6E3; border: 1px solid #E8D5B0; '
+            'border-radius: 0.5rem; padding: 0.75rem 1rem; font-size: 0.875rem; color: #7A6840;">'
+            '⚠️ 다음 화면으로 넘어간 후에는 이전 평가를 번복할 수 없습니다.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
     # ── 하단 네비게이션 ──
     st.divider()
     nav1, nav2, nav3 = st.columns([2, 3, 2])
 
     with nav1:
-        st.caption(f"문제 {idx + 1} / {total}  ·  {STEP_LABELS[step]}")
+        st.caption(f"문제 {item.get('문제번호', idx + 1)} / {total}  ·  {STEP_LABELS[step]}")
 
     with nav2:
         if st.button("평가 완료 및 결과 저장", use_container_width=True):
@@ -588,8 +599,6 @@ def evaluation_page():
                 disabled=True,
             )
 
-    st.caption("※ 다음 화면으로 넘어간 후에는 이전 평가를 번복할 수 없습니다.")
-
 
 # ─────────────────────────────────────────────
 # 페이지 3: 결과
@@ -627,6 +636,7 @@ def result_page():
         if item_id in final_results:
             result = final_results[item_id]
             rows.append({
+                "문제번호": item.get("문제번호", ""),
                 "index": item["id"],
                 "평가자_식별번호": st.session_state.evaluator_id,
                 "나이": item.get("age", ""),
@@ -642,15 +652,27 @@ def result_page():
 
     # 요약 통계
     st.subheader("평가 요약")
-    m1, m2, m3 = st.columns(3)
+    m1, m2 = st.columns(2)
     with m1:
         st.metric("평가 완료", f"{completed} / {total}")
     with m2:
-        if not df.empty and len(df) > 0:
-            st.metric("최다 대분류", df["대분류"].mode().iloc[0])
-    with m3:
-        if not df.empty and len(df) > 0:
-            st.metric("최다 KTAS", df["KTAS level"].mode().iloc[0])
+        if not df.empty:
+            time_cols = ["대분류_소요시간(초)", "중분류_소요시간(초)", "KTAS_소요시간(초)"]
+            df_time = df[time_cols].apply(pd.to_numeric, errors="coerce")
+            avg_per_question = df_time.sum(axis=1).mean()
+            st.metric("문제 당 평균 소요시간", f"{avg_per_question:.1f}초")
+
+    if not df.empty:
+        st.markdown("")
+        time_cols = ["대분류_소요시간(초)", "중분류_소요시간(초)", "KTAS_소요시간(초)"]
+        df_time = df[time_cols].apply(pd.to_numeric, errors="coerce")
+        t1, t2, t3 = st.columns(3)
+        with t1:
+            st.metric("대분류 평균", f"{df_time['대분류_소요시간(초)'].mean():.1f}초")
+        with t2:
+            st.metric("중분류 평균", f"{df_time['중분류_소요시간(초)'].mean():.1f}초")
+        with t3:
+            st.metric("KTAS 평균", f"{df_time['KTAS_소요시간(초)'].mean():.1f}초")
 
     st.markdown("")
 
@@ -665,7 +687,7 @@ def result_page():
     filename = f"evaluation_{st.session_state.evaluator_id}_{st.session_state.version}_{timestamp}.csv"
     csv_data = df.to_csv(index=False).encode("utf-8-sig")
 
-    d1, d2 = st.columns(2)
+    d1, _ = st.columns(2)
     with d1:
         st.download_button(
             label="CSV 파일 다운로드",
@@ -675,12 +697,6 @@ def result_page():
             type="primary",
             use_container_width=True,
         )
-    with d2:
-        if st.button("서버에 결과 저장", use_container_width=True):
-            os.makedirs(RESULTS_DIR, exist_ok=True)
-            save_path = os.path.join(RESULTS_DIR, filename)
-            df.to_csv(save_path, index=False, encoding="utf-8-sig")
-            st.success(f"저장 완료: {save_path}")
 
     st.divider()
     if completed < total:
