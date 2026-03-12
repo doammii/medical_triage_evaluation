@@ -79,6 +79,9 @@ def load_data(version="ver1"):
             "llm_major": str(row.get("LLM_대분류", "")) if pd.notna(row.get("LLM_대분류")) else "",
             "llm_sub": str(row.get("LLM_중분류", "")) if pd.notna(row.get("LLM_중분류")) else "",
             "llm_ktas": str(row.get("LLM_KTAS_level", "")) if pd.notna(row.get("LLM_KTAS_level")) else "",
+            "gt_major": str(row.get("GT_대분류", "")).strip() if pd.notna(row.get("GT_대분류")) else "",
+            "gt_sub": str(row.get("GT_중분류", "")).strip() if pd.notna(row.get("GT_중분류")) else "",
+            "gt_ktas": str(row.get("GT_KTAS_level", "")).strip() if pd.notna(row.get("GT_KTAS_level")) else "",
         }
         data.append(item)
 
@@ -494,12 +497,7 @@ def evaluation_page():
 
         # ── 단계 1: 중분류 ──
         elif step == STEP_SUB:
-            selected_major = st.session_state.temp_major
-            if selected_major:
-                sub_options = get_sub_categories_for_major(selected_major, item)
-                st.info(f"**선택된 대분류:** {selected_major}")
-            else:
-                sub_options = item.get("sub_categories", [])
+            sub_options = get_sub_categories_for_major(item["gt_major"], item)
 
             if is_ver2 and item.get("llm_sub"):
                 st.info(f"**LLM 예측:** {item['llm_sub']}")
@@ -515,11 +513,9 @@ def evaluation_page():
 
         # ── 단계 2: KTAS Level ──
         elif step == STEP_KTAS:
-            selected_major = st.session_state.temp_major
             temp_result = st.session_state.results.get(f"{item_id}_temp", {})
             selected_sub = temp_result.get("sub", "")
 
-            st.info(f"**선택된 대분류:** {selected_major}")
             st.info(f"**선택된 중분류:** {selected_sub}")
 
             if is_ver2 and item.get("llm_ktas"):
