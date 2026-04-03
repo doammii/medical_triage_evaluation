@@ -27,11 +27,11 @@ DATA_FILE = os.path.join(DATA_DIR, "evaluation_data.xlsx")
 CATEGORIES_FILE = os.path.join(DATA_DIR, "categories.xlsx")
 
 KTAS_OPTIONS = [
-    "Level 1 - 즉각 소생 (Resuscitation)",
-    "Level 2 - 긴급 (Emergency)",
-    "Level 3 - 응급 (Urgent)",
-    "Level 4 - 준응급 (Less Urgent)",
-    "Level 5 - 비응급 (Non-Urgent)",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
 ]
 
 STEP_MAJOR = 0
@@ -156,7 +156,8 @@ def render_conversation(conversation):
                 .replace('"', "&quot;")
             )
 
-            if speaker == "I":
+            speaker_upper = speaker.strip().upper()
+            if speaker_upper in ("I", "면담자", "의사", "DOCTOR", "INTERVIEWER"):
                 chat_bubbles += (
                     '<div class="msg-row left">'
                     '<div class="bubble bbl-i">'
@@ -165,7 +166,7 @@ def render_conversation(conversation):
                     f'<div class="txt">{utterance}</div>'
                     '</div></div>'
                 )
-            elif speaker == "CHATGPT":
+            elif speaker_upper in ("CHATGPT", "환자", "PATIENT", "P"):
                 chat_bubbles += (
                     '<div class="msg-row right">'
                     '<div class="bubble bbl-p">'
@@ -192,7 +193,7 @@ def render_conversation(conversation):
             if not line:
                 continue
 
-            if any(line.startswith(p) for p in ["의사:", "Doctor:", "I:"]):
+            if any(line.startswith(p) for p in ["의사:", "Doctor:", "I:", "면담자:", "Interviewer:"]):
                 content = line.split(":", 1)[1].strip()
                 content = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 chat_bubbles += (
@@ -201,7 +202,7 @@ def render_conversation(conversation):
                     f'<div class="txt">{content}</div>'
                     '</div></div>'
                 )
-            elif any(line.startswith(p) for p in ["환자:", "Patient:", "CHATGPT:"]):
+            elif any(line.startswith(p) for p in ["환자:", "Patient:", "CHATGPT:", "ChatGPT:", "chatgpt:"]):
                 content = line.split(":", 1)[1].strip()
                 content = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 chat_bubbles += (
