@@ -219,7 +219,7 @@ def render_conversation(conversation):
                 )
             msg_count += 1
 
-    estimated_height = max(450, min(msg_count * 72, 700))
+    estimated_height = max(450, min(msg_count * 90, 700))
 
     full_html = (
         '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
@@ -227,7 +227,7 @@ def render_conversation(conversation):
         'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,'
         '"Noto Sans KR",sans-serif;background:#F8F9FB;padding:10px 12px;'
         'max-width:520px;margin:0 auto;}'
-        '.msg-row{display:flex;margin-bottom:8px;}'
+        '.msg-row{display:flex;margin-bottom:22px;}'
         '.msg-row.left{justify-content:flex-start;}'
         '.msg-row.right{justify-content:flex-end;}'
         '.bubble{max-width:85%;padding:10px 14px;border-radius:14px;line-height:1.55;}'
