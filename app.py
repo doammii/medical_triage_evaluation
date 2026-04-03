@@ -12,6 +12,7 @@ Streamlit 기반 평가 웹앱
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
+import copy
 import json
 import os
 import time
@@ -80,8 +81,6 @@ def load_data(version="ver1"):
             "llm_sub": str(row.get("LLM_중분류", "")) if pd.notna(row.get("LLM_중분류")) else "",
             "llm_ktas": str(row.get("LLM_KTAS_level", "")) if pd.notna(row.get("LLM_KTAS_level")) else "",
             "gt_major": str(row.get("GT_대분류", "")).strip() if pd.notna(row.get("GT_대분류")) else "",
-            "gt_sub": str(row.get("GT_중분류", "")).strip() if pd.notna(row.get("GT_중분류")) else "",
-            "gt_ktas": str(row.get("GT_KTAS_level", "")).strip() if pd.notna(row.get("GT_KTAS_level")) else "",
         }
         data.append(item)
 
@@ -128,7 +127,6 @@ def init_session_state():
         "data": None,
         "categories": None,
         "step_start_time": None,
-        "temp_major": None,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -193,7 +191,6 @@ def render_conversation(conversation):
             line = line.strip()
             if not line:
                 continue
-            esc = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
             if any(line.startswith(p) for p in ["의사:", "Doctor:", "I:"]):
                 content = line.split(":", 1)[1].strip()
@@ -214,6 +211,7 @@ def render_conversation(conversation):
                     '</div></div>'
                 )
             else:
+                esc = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 chat_bubbles += (
                     '<div class="msg-row left"><div class="bubble bbl-o">'
                     f'<div class="txt">{esc}</div>'
@@ -227,11 +225,12 @@ def render_conversation(conversation):
         '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
         '*{margin:0;padding:0;box-sizing:border-box;}'
         'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,'
-        '"Noto Sans KR",sans-serif;background:#F8F9FB;padding:10px 12px;}'
+        '"Noto Sans KR",sans-serif;background:#F8F9FB;padding:10px 12px;'
+        'max-width:520px;margin:0 auto;}'
         '.msg-row{display:flex;margin-bottom:8px;}'
         '.msg-row.left{justify-content:flex-start;}'
         '.msg-row.right{justify-content:flex-end;}'
-        '.bubble{max-width:82%;padding:10px 14px;border-radius:14px;line-height:1.55;}'
+        '.bubble{max-width:85%;padding:10px 14px;border-radius:14px;line-height:1.55;}'
         '.bbl-i{background:#fff;border:1px solid #D6E4F0;border-bottom-left-radius:4px;}'
         '.bbl-p{background:#EEF6FF;border:1px solid #C5DCF0;border-bottom-right-radius:4px;}'
         '.bbl-o{background:#F5F5F5;border:1px solid #E0E0E0;border-bottom-left-radius:4px;}'
@@ -311,18 +310,66 @@ def _get_cat_map_for_item(item: dict):
     return all_cat_map.get("성인")
 
 
+def _normalize_category(name: str) -> str:
+    """구분자(_, /, ,)를 제거하여 카테고리명을 정규화합니다."""
+    return name.replace("_", "").replace("/", "").replace(",", "")
+
+
 def get_sub_categories_for_major(major_category: str, item: dict) -> list:
     cat_map = _get_cat_map_for_item(item)
     if cat_map and major_category in cat_map:
         return cat_map[major_category]
-    return item.get("sub_categories", [])
+    # 구분자 차이로 exact match 실패 시, 정규화하여 재검색
+    if cat_map and major_category:
+        norm_key = _normalize_category(major_category)
+        for key in cat_map:
+            if _normalize_category(key) == norm_key:
+                return cat_map[key]
+        st.warning(f"'{major_category}'에 해당하는 중분류를 찾을 수 없습니다. 카테고리 파일을 확인하세요.")
+    elif not cat_map:
+        st.warning("카테고리 데이터가 로드되지 않았습니다. categories.xlsx 파일을 확인하세요.")
+    return []
 
 
 def get_major_categories(item: dict) -> list:
     cat_map = _get_cat_map_for_item(item)
     if cat_map:
         return list(cat_map.keys())
-    return item.get("major_categories", [])
+    st.warning("카테고리 데이터가 로드되지 않았습니다. categories.xlsx 파일을 확인하세요.")
+    return []
+
+
+# ─────────────────────────────────────────────
+# 이전 결과 CSV 복원 헬퍼
+# ─────────────────────────────────────────────
+def _restore_results_from_csv(uploaded_file):
+    """이전에 저장한 CSV 파일에서 평가 결과를 복원합니다.
+    반환: (results_dict, restored_count)
+    """
+    try:
+        df = pd.read_csv(uploaded_file)
+    except Exception as e:
+        st.error(f"CSV 파일을 읽을 수 없습니다: {e}")
+        return {}, 0
+
+    required_cols = {"index", "대분류", "중분류", "KTAS level"}
+    if not required_cols.issubset(set(df.columns)):
+        st.error(f"CSV에 필수 컬럼이 없습니다: {required_cols - set(df.columns)}")
+        return {}, 0
+
+    results = {}
+    for _, row in df.iterrows():
+        item_id = str(int(row["index"]))
+        results[item_id] = {
+            "major": str(row["대분류"]),
+            "sub": str(row["중분류"]),
+            "ktas": str(row["KTAS level"]),
+            "time_major": float(row.get("대분류_소요시간(초)", 0) or 0),
+            "time_sub": float(row.get("중분류_소요시간(초)", 0) or 0),
+            "time_ktas": float(row.get("KTAS_소요시간(초)", 0) or 0),
+        }
+
+    return results, len(results)
 
 
 # ─────────────────────────────────────────────
@@ -390,6 +437,7 @@ def login_page():
             )
 
             start_number = 1
+            uploaded_csv = None
             if start_mode == "이어서 평가 (문제 번호 선택)":
                 preview_data = load_data(version)
                 total_count = len(preview_data)
@@ -402,6 +450,13 @@ def login_page():
                     help=f"1 ~ {total_count} 사이의 번호를 입력하세요.",
                 )
 
+                st.markdown("")
+                uploaded_csv = st.file_uploader(
+                    "이전 평가 결과 CSV 불러오기 (선택)",
+                    type=["csv"],
+                    help="이전에 저장한 CSV 파일을 업로드하면 기존 평가 결과가 복원됩니다.",
+                )
+
         st.markdown("")
         st.markdown("")
 
@@ -409,12 +464,23 @@ def login_page():
             if evaluator_id.strip():
                 st.session_state.evaluator_id = evaluator_id.strip()
                 st.session_state.version = version
-                st.session_state.data = load_data(version)
-                st.session_state.categories = load_categories()
+                st.session_state.data = copy.deepcopy(load_data(version))
+                st.session_state.categories = copy.deepcopy(load_categories())
                 st.session_state.current_index = start_number - 1
                 st.session_state.current_step = STEP_MAJOR
                 st.session_state.step_start_time = time.time()
-                st.session_state.temp_major = None
+
+                # 이전 결과 CSV 복원 / 초기화
+                if start_mode == "처음부터 평가":
+                    st.session_state.results = {}
+                elif uploaded_csv is not None:
+                    restored, count = _restore_results_from_csv(uploaded_csv)
+                    if count > 0:
+                        st.session_state.results = restored
+                        st.toast(f"이전 평가 결과 {count}건이 복원되었습니다.")
+                    # CSV 파싱 실패 시 기존 세션 결과를 유지
+                # CSV 미업로드 시에도 기존 세션 결과를 유지
+
                 st.session_state.page = "evaluation"
                 st.rerun()
             else:
@@ -491,7 +557,7 @@ def evaluation_page():
                 "대분류를 선택하세요",
                 options=major_options,
                 index=None,
-                key=f"radio_major_{idx}",
+                key=f"radio_major_{idx}_{item_id}",
                 label_visibility="collapsed",
             )
 
@@ -507,7 +573,7 @@ def evaluation_page():
                 "중분류를 선택하세요",
                 options=sub_options,
                 index=None,
-                key=f"radio_sub_{idx}",
+                key=f"radio_sub_{idx}_{item_id}",
                 label_visibility="collapsed",
             )
 
@@ -526,7 +592,7 @@ def evaluation_page():
                 "KTAS Level을 선택하세요",
                 options=KTAS_OPTIONS,
                 index=None,
-                key=f"radio_ktas_{idx}",
+                key=f"radio_ktas_{idx}_{item_id}",
                 label_visibility="collapsed",
             )
 
@@ -554,10 +620,11 @@ def evaluation_page():
     with nav3:
         if selected_value is not None:
             if st.button("다음 →", type="primary", use_container_width=True):
-                elapsed = time.time() - (st.session_state.step_start_time or time.time())
+                if st.session_state.step_start_time is None:
+                    st.session_state.step_start_time = time.time()
+                elapsed = time.time() - st.session_state.step_start_time
 
                 if step == STEP_MAJOR:
-                    st.session_state.temp_major = selected_value
                     st.session_state.results[f"{item_id}_temp"] = {
                         "major": selected_value,
                         "time_major": round(elapsed, 2),
@@ -583,7 +650,6 @@ def evaluation_page():
                     }
                     st.session_state.current_index += 1
                     st.session_state.current_step = STEP_MAJOR
-                    st.session_state.temp_major = None
 
                 st.session_state.step_start_time = time.time()
                 st.rerun()
@@ -660,8 +726,6 @@ def result_page():
 
     if not df.empty:
         st.markdown("")
-        time_cols = ["대분류_소요시간(초)", "중분류_소요시간(초)", "KTAS_소요시간(초)"]
-        df_time = df[time_cols].apply(pd.to_numeric, errors="coerce")
         t1, t2, t3 = st.columns(3)
         with t1:
             st.metric("대분류 평균", f"{df_time['대분류_소요시간(초)'].mean():.1f}초")
