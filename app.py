@@ -572,6 +572,7 @@ def evaluation_page():
             sub_options = get_sub_categories_for_major(item["gt_major"], item)
 
             if is_ver2 and item.get("llm_sub"):
+                st.markdown(f"**대분류:** {item['gt_major']}")
                 st.info(f"**LLM 대분류 예측:** {item['llm_major']}  \n**LLM 중분류 예측:** {item['llm_sub']}")
 
             st.markdown("**아래에서 중분류를 선택하세요:**")
@@ -588,7 +589,7 @@ def evaluation_page():
             temp_result = st.session_state.results.get(f"{item_id}_temp", {})
             selected_sub = temp_result.get("sub", "")
 
-            st.info(f"**중분류:** {selected_sub}")
+            st.info(f"**대분류:** {item['gt_major']}  \n**중분류:** {selected_sub}")
 
             if is_ver2 and item.get("llm_ktas"):
                 st.info(f"**LLM 대분류 예측:** {item['llm_major']}  \n**LLM 중분류 예측:** {item['llm_sub']}  \n**LLM KTAS level 예측:** {item['llm_ktas']}")
