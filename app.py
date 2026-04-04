@@ -572,7 +572,12 @@ def evaluation_page():
             sub_options = get_sub_categories_for_major(item["gt_major"], item)
 
             if is_ver2 and item.get("llm_sub"):
-                st.markdown(f"**대분류:** {item['gt_major']}")
+                st.markdown(
+                    f'<div style="background-color:#FFF9E3;border:1px solid #F0E6B8;border-radius:0.5rem;'
+                    f'padding:0.75rem 1rem;margin-bottom:0.5rem;font-size:0.95rem;color:#5A4E2F;">'
+                    f'<b>대분류:</b> {item["gt_major"]}</div>',
+                    unsafe_allow_html=True,
+                )
                 st.info(f"**LLM 대분류 예측:** {item['llm_major']}  \n**LLM 중분류 예측:** {item['llm_sub']}")
 
             st.markdown("**아래에서 중분류를 선택하세요:**")
@@ -589,7 +594,12 @@ def evaluation_page():
             temp_result = st.session_state.results.get(f"{item_id}_temp", {})
             selected_sub = temp_result.get("sub", "")
 
-            st.info(f"**대분류:** {item['gt_major']}  \n**중분류:** {selected_sub}")
+            st.markdown(
+                f'<div style="background-color:#FFF9E3;border:1px solid #F0E6B8;border-radius:0.5rem;'
+                f'padding:0.75rem 1rem;margin-bottom:0.5rem;font-size:0.95rem;color:#5A4E2F;">'
+                f'<b>대분류:</b> {item["gt_major"]}<br><b>중분류:</b> {selected_sub}</div>',
+                unsafe_allow_html=True,
+            )
 
             if is_ver2 and item.get("llm_ktas"):
                 st.info(f"**LLM 대분류 예측:** {item['llm_major']}  \n**LLM 중분류 예측:** {item['llm_sub']}  \n**LLM KTAS level 예측:** {item['llm_ktas']}")
