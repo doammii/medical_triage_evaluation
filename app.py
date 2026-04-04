@@ -539,6 +539,11 @@ def evaluation_page():
         age_suffix = f" ({age_label})" if age_label else ""
         q_num = item.get("문제번호", idx + 1)
         st.subheader(f"{q_num}. 문진 대화 #{item['id']}{age_suffix}")
+        st.markdown(
+            '<p style="font-size:0.85rem; color:#888; margin-top:-0.5rem; margin-bottom:0.5rem;">'
+            '※ 대화를 스크롤하여 확인하세요.</p>',
+            unsafe_allow_html=True,
+        )
         render_conversation(item["conversation"])
 
     with col_right:
@@ -567,7 +572,7 @@ def evaluation_page():
             sub_options = get_sub_categories_for_major(item["gt_major"], item)
 
             if is_ver2 and item.get("llm_sub"):
-                st.info(f"**LLM 예측:** {item['llm_sub']}")
+                st.info(f"**LLM 대분류 예측:** {item['llm_major']}  \n**LLM 중분류 예측:** {item['llm_sub']}")
 
             st.markdown("**아래에서 중분류를 선택하세요:**")
             selected_value = st.radio(
@@ -583,10 +588,10 @@ def evaluation_page():
             temp_result = st.session_state.results.get(f"{item_id}_temp", {})
             selected_sub = temp_result.get("sub", "")
 
-            st.info(f"**선택된 중분류:** {selected_sub}")
+            st.info(f"**중분류:** {selected_sub}")
 
             if is_ver2 and item.get("llm_ktas"):
-                st.info(f"**LLM 예측:** {item['llm_ktas']}")
+                st.info(f"**LLM 대분류 예측:** {item['llm_major']}  \n**LLM 중분류 예측:** {item['llm_sub']}  \n**LLM KTAS level 예측:** {item['llm_ktas']}")
 
             st.markdown("**아래에서 KTAS Level을 선택하세요:**")
             selected_value = st.radio(
