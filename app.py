@@ -17,6 +17,7 @@ import json
 import os
 import time
 from datetime import datetime
+import random
 
 # ─────────────────────────────────────────────
 # 설정 (Configuration)
@@ -52,7 +53,7 @@ def load_data(version="ver1"):
 
     df = pd.read_excel(DATA_FILE, engine="openpyxl")
 
-    q_col = "문제번호1" if version == "ver1" else "문제번호2"
+    q_col = "문제번호1" if version in ("ver1", "ver0") else "문제번호2"
 
     data = []
     for _, row in df.iterrows():
@@ -415,8 +416,9 @@ def login_page():
 
             version = st.radio(
                 "평가 버전 선택",
-                options=["ver1", "ver2"],
+                options=["ver0", "ver1", "ver2"],
                 captions=[
+                    "연습 평가 (랜덤 3문제, 결과 저장 없음)",
                     "기본 평가 (대분류 / 중분류 / KTAS 선택)",
                     "LLM 답변 참고 평가 (각 항목에 LLM 예측값 표시)",
                 ],
@@ -466,8 +468,14 @@ def login_page():
                 st.session_state.evaluator_id = evaluator_id.strip()
                 st.session_state.version = version
                 st.session_state.data = copy.deepcopy(load_data(version))
+                if version == "ver0":
+                    all_data = st.session_state.data
+                    sampled = random.sample(all_data, min(3, len(all_data)))
+                    for i, d in enumerate(sampled):
+                        d["문제번호"] = i + 1
+                    st.session_state.data = sampled
                 st.session_state.categories = copy.deepcopy(load_categories())
-                st.session_state.current_index = start_number - 1
+                st.session_state.current_index = 0 if version == "ver0" else start_number - 1
                 st.session_state.current_step = STEP_MAJOR
                 st.session_state.step_start_time = time.time()
 
@@ -504,7 +512,11 @@ def evaluation_page():
     is_ver2 = st.session_state.version == "ver2"
 
     if idx >= total:
-        st.session_state.page = "result"
+        if st.session_state.version == "ver0":
+            st.session_state.page = "login"
+            st.toast("연습 평가가 완료되었습니다! 본 평가(ver1 또는 ver2)를 시작해주세요.")
+        else:
+            st.session_state.page = "result"
         st.rerun()
         return
 
@@ -523,7 +535,7 @@ def evaluation_page():
         progress_ratio = completed / total
         st.progress(progress_ratio, text=f"진행률: {completed} / {total} 완료")
     with h2:
-        ver_label = "기본" if st.session_state.version == "ver1" else "LLM참고"
+        ver_label = "연습" if st.session_state.version == "ver0" else ("기본" if st.session_state.version == "ver1" else "LLM참고")
         st.success(f"**{st.session_state.evaluator_id}** ({ver_label})")
 
     # ── 단계 표시 (components.html) ──
@@ -539,6 +551,12 @@ def evaluation_page():
         age_suffix = f" ({age_label})" if age_label else ""
         q_num = item.get("문제번호", idx + 1)
         st.subheader(f"{q_num}. 문진 대화 #{item['id']}{age_suffix}")
+        step_instruction = {
+            STEP_MAJOR: "대화를 읽고 대분류를 시행해주세요.",
+            STEP_SUB: "대화를 읽고 중분류를 시행해주세요.",
+            STEP_KTAS: "대화를 읽고 KTAS Level 분류를 시행해주세요.",
+        }
+        st.markdown(step_instruction.get(step, ""))
         st.markdown(
             '<p style="font-size:0.85rem; color:#888; margin-top:-0.5rem; margin-bottom:0.5rem;">'
             '※ 대화를 스크롤하여 확인하세요.</p>',
@@ -558,7 +576,7 @@ def evaluation_page():
             if is_ver2 and item.get("llm_major"):
                 st.info(f"**LLM 예측:** {item['llm_major']}")
 
-            st.markdown("**아래에서 대분류를 선택하세요:**")
+            st.markdown('<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">아래에서 대분류를 선택하세요:</p>', unsafe_allow_html=True)
             selected_value = st.radio(
                 "대분류를 선택하세요",
                 options=major_options,
@@ -571,16 +589,20 @@ def evaluation_page():
         elif step == STEP_SUB:
             sub_options = get_sub_categories_for_major(item["gt_major"], item)
 
+            temp_result = st.session_state.results.get(f"{item_id}_temp", {})
+            user_selected_major = temp_result.get("major", "")
+
             if is_ver2 and item.get("llm_sub"):
+                st.info(f"**LLM 중분류 예측:** {item['llm_sub']}")
+
+            if user_selected_major and user_selected_major != item["gt_major"]:
                 st.markdown(
-                    f'<div style="background-color:#FFF9E3;border:1px solid #F0E6B8;border-radius:0.5rem;'
-                    f'padding:0.75rem 1rem;margin-bottom:0.5rem;font-size:0.95rem;color:#5A4E2F;">'
-                    f'<b>대분류:</b> {item["gt_major"]}</div>',
+                    f'<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">'
+                    f'설정된 대분류({item["gt_major"]})를 기준으로 주증상을 선택해주세요.</p>',
                     unsafe_allow_html=True,
                 )
-                st.info(f"**LLM 대분류 예측:** {item['llm_major']}  \n**LLM 중분류 예측:** {item['llm_sub']}")
-
-            st.markdown("**아래에서 중분류를 선택하세요:**")
+            else:
+                st.markdown('<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">아래에서 중분류를 선택하세요:</p>', unsafe_allow_html=True)
             selected_value = st.radio(
                 "중분류를 선택하세요",
                 options=sub_options,
@@ -594,17 +616,10 @@ def evaluation_page():
             temp_result = st.session_state.results.get(f"{item_id}_temp", {})
             selected_sub = temp_result.get("sub", "")
 
-            st.markdown(
-                f'<div style="background-color:#FFF9E3;border:1px solid #F0E6B8;border-radius:0.5rem;'
-                f'padding:0.75rem 1rem;margin-bottom:0.5rem;font-size:0.95rem;color:#5A4E2F;">'
-                f'<b>대분류:</b> {item["gt_major"]}<br><b>중분류:</b> {selected_sub}</div>',
-                unsafe_allow_html=True,
-            )
-
             if is_ver2 and item.get("llm_ktas"):
-                st.info(f"**LLM 대분류 예측:** {item['llm_major']}  \n**LLM 중분류 예측:** {item['llm_sub']}  \n**LLM KTAS level 예측:** {item['llm_ktas']}")
+                st.info(f"**LLM KTAS level 예측:** {item['llm_ktas']}")
 
-            st.markdown("**아래에서 KTAS Level을 선택하세요:**")
+            st.markdown('<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">아래에서 KTAS Level을 선택하세요:</p>', unsafe_allow_html=True)
             selected_value = st.radio(
                 "KTAS Level을 선택하세요",
                 options=KTAS_OPTIONS,
@@ -630,9 +645,13 @@ def evaluation_page():
         st.caption(f"문제 {item.get('문제번호', idx + 1)} / {total}  ·  {STEP_LABELS[step]}")
 
     with nav2:
-        if st.button("평가 완료 및 결과 저장", use_container_width=True):
-            st.session_state.page = "result"
-            st.rerun()
+        if st.session_state.version == "ver0":
+            if st.button("평가 완료 및 결과 저장", use_container_width=True):
+                st.toast("연습 모드에서는 결과가 저장되지 않습니다.")
+        else:
+            if st.button("평가 완료 및 결과 저장", use_container_width=True):
+                st.session_state.page = "result"
+                st.rerun()
 
     with nav3:
         if selected_value is not None:
