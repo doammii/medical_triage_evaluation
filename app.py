@@ -82,6 +82,7 @@ def load_data(version="ver1"):
             "llm_sub": str(row.get("LLM_중분류", "")) if pd.notna(row.get("LLM_중분류")) else "",
             "llm_ktas": str(row.get("LLM_KTAS_level", "")) if pd.notna(row.get("LLM_KTAS_level")) else "",
             "gt_major": str(row.get("GT_대분류", "")).strip() if pd.notna(row.get("GT_대분류")) else "",
+            "gt_minor": str(row.get("GT_중분류", "")).strip() if pd.notna(row.get("GT_중분류")) else "",
         }
         data.append(item)
 
@@ -598,7 +599,7 @@ def evaluation_page():
             if user_selected_major and user_selected_major != item["gt_major"]:
                 st.markdown(
                     f'<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">'
-                    f'설정된 대분류({item["gt_major"]})를 기준으로 주증상을 선택해주세요.</p>',
+                    f'설정된 대분류(<span style="color:#2C6FBF;">{item["gt_major"]}</span>)를 기준으로 주증상을 선택해주세요.</p>',
                     unsafe_allow_html=True,
                 )
             else:
@@ -619,7 +620,14 @@ def evaluation_page():
             if is_ver2 and item.get("llm_ktas"):
                 st.info(f"**LLM KTAS level 예측:** {item['llm_ktas']}")
 
-            st.markdown('<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">아래에서 KTAS Level을 선택하세요:</p>', unsafe_allow_html=True)
+            if selected_sub and item.get("gt_minor") and selected_sub != item["gt_minor"]:
+                st.markdown(
+                    f'<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">'
+                    f'설정된 중분류(<span style="color:#2C6FBF;">{item["gt_minor"]}</span>)를 기준으로 KTAS level을 선택해주세요.</p>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown('<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">아래에서 KTAS Level을 선택하세요:</p>', unsafe_allow_html=True)
             selected_value = st.radio(
                 "KTAS Level을 선택하세요",
                 options=KTAS_OPTIONS,
