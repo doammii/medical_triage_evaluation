@@ -87,6 +87,12 @@ def load_data(version="ver1"):
         data.append(item)
 
     data.sort(key=lambda x: x["문제번호"])
+
+    # 문제번호가 0부터 시작하는 경우 1부터 시작하도록 보정
+    if data and data[0]["문제번호"] == 0:
+        for item in data:
+            item["문제번호"] += 1
+
     return data
 
 
@@ -501,6 +507,18 @@ def login_page():
 # 페이지 2: 평가
 # ─────────────────────────────────────────────
 def evaluation_page():
+    # 상단 영역, 단계 표시기, 본문 간 상하 간격 축소
+    st.markdown(
+        """<style>
+        /* 상단 progress·평가자 영역 하단 여백 축소 */
+        div[data-testid="stProgress"] { margin-bottom: -0.6rem; }
+        /* 단계 표시기(iframe) 상하 여백 축소 */
+        iframe[height="70"] { margin-top: -0.8rem; margin-bottom: -0.8rem; }
+        /* divider 여백 축소 */
+        hr { margin-top: 0.2rem !important; margin-bottom: 0.2rem !important; }
+        </style>""",
+        unsafe_allow_html=True,
+    )
     data = st.session_state.data
     if data is None:
         st.session_state.page = "login"
@@ -596,14 +614,11 @@ def evaluation_page():
             if is_ver2 and item.get("llm_sub"):
                 st.info(f"**LLM 중분류 예측:** {item['llm_sub']}")
 
-            if user_selected_major and user_selected_major != item["gt_major"]:
-                st.markdown(
-                    f'<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">'
-                    f'설정된 대분류(<span style="color:#2C6FBF;">{item["gt_major"]}</span>)를 기준으로 주증상을 선택해주세요.</p>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown('<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">아래에서 중분류를 선택하세요:</p>', unsafe_allow_html=True)
+            st.markdown(
+                f'<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">'
+                f'설정된 대분류(<span style="color:#2C6FBF;">{item["gt_major"]}</span>)를 기준으로 주증상을 선택해주세요.</p>',
+                unsafe_allow_html=True,
+            )
             selected_value = st.radio(
                 "중분류를 선택하세요",
                 options=sub_options,
@@ -620,14 +635,11 @@ def evaluation_page():
             if is_ver2 and item.get("llm_ktas"):
                 st.info(f"**LLM KTAS level 예측:** {item['llm_ktas']}")
 
-            if selected_sub and item.get("gt_minor") and selected_sub != item["gt_minor"]:
-                st.markdown(
-                    f'<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">'
-                    f'설정된 중분류(<span style="color:#2C6FBF;">{item["gt_minor"]}</span>)를 기준으로 KTAS level을 선택해주세요.</p>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown('<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">아래에서 KTAS Level을 선택하세요:</p>', unsafe_allow_html=True)
+            st.markdown(
+                f'<p style="font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">'
+                f'설정된 중분류(<span style="color:#2C6FBF;">{item["gt_minor"]}</span>)를 기준으로 KTAS level을 선택해주세요.</p>',
+                unsafe_allow_html=True,
+            )
             selected_value = st.radio(
                 "KTAS Level을 선택하세요",
                 options=KTAS_OPTIONS,
