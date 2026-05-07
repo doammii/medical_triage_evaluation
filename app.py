@@ -178,7 +178,7 @@ def render_conversation(conversation):
                 chat_bubbles += (
                     '<div class="msg-row right">'
                     '<div class="bubble bbl-p">'
-                    f'<div class="lbl lbl-p">&#x1F916; 환자(ChatGPT)'
+                    f'<div class="lbl lbl-p">&#x1F916; 환자'
                     f' <span class="turn-tag">Turn {turn}</span></div>'
                     f'<div class="txt">{utterance}</div>'
                     '</div></div>'
@@ -215,7 +215,7 @@ def render_conversation(conversation):
                 content = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 chat_bubbles += (
                     '<div class="msg-row right"><div class="bubble bbl-p">'
-                    '<div class="lbl lbl-p">&#x1F916; 환자(ChatGPT)</div>'
+                    '<div class="lbl lbl-p">&#x1F916; 환자</div>'
                     f'<div class="txt">{content}</div>'
                     '</div></div>'
                 )
